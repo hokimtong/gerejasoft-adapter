@@ -1,0 +1,702 @@
+FORMAT: 1A
+HOST: https://gii.gerejasoft.com/api/v1
+
+# GII-GerejaSoft
+
+GerejaSoft API for GII provides access to managed church data for use in applications.
+
+The API is intended for server-to-server calls and thus provides full access to authenticated requests,
+without further fine grained authorization. Requests are authenticated with an API Key in the
+`Authorization` header.
+
+## Group People
+
+People API provides access to congregation data, including particulars of individual members and visitors.
+
+### People Collection [/people{?limit,offset,sort,site,service,status,full_name,phone,email,identity,membership}]
+
+#### Search for People [GET]
+
+This method provides a way to search for people whose system ID is not known.
+
+The returned information does not include all attributes of a person, but only the basic information,
+including the person's system ID. To retrieve all attributes, use `GET /people/{id}`.
+
++ Parameters
+    + limit:`100` (optional, number) ... Maximum number of people to retrieve
+    + offset:`500` (optional, number) ... Number of records to skip
+    + sort:`+full_name,-age` (optional, string) ... Ascending and descending sorting
+      over multiple fields
+    + site:`PURI` (optional, string) ... Filter for Church site ID attribute
+    + service:`PURI-1` (optional, string) ... Filter for default service attribute
+    + status:`ACTIVE` (optional, enum[string]) ... Filter for person status attribute
+        + Members
+            + ACTIVE
+            + INACTIVE
+            + INACTIVE_PERMANENT,
+    + full_name:`Johan` (optional, string) ... Partial match filter for a person's full name
+    + phone:`08128882222` (optional, string) ... Filter for any phone number of a person,
+      which matches by multiple formats of number, e.g. +628128882222 will also match 08128882222
+    + email:`johan@example.com` (optional, string) ... Filter for any email address of a person
+    + identity:`B2000888` (optional, string) ... Filter for any identity card number of a person
+    + membership:`012345` (optional, string) ... Filter for any membership ID of a person,
+      including past and active memberships
+
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "674b03d67bbb4d66b7d63f4412ddf264",
+                "full_name": "Johan Setiadi",
+                "short_name": "Johan",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "gender": "M",
+                "place_of_birth": "Bandung",
+                "age": 26,
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "johan@example.com",
+                        "isDefault": true
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "id": "012345",
+                        "since": "2006-04-01"
+                    }
+                ]
+            }
+        ]
+
+#### Create a New Person [POST]
+
+By default, a new person can be added to the system only after the details have been vetted through
+by an administrator. Successful creation request will result in `202 Accepted` response, with a
+request ID that can be used to check if the person creation has been approved and effected.
+
+Direct creation of a person is also supported by setting the `X-Direct` header in the request.
+Successful direct creation results in `201 Created` response, with a link to the newly created person.
+
+Under these circumstances, a new membership ID is assigned to the newly created person:
+
+- If the `memberships` attribute is empty or there is no active item in the `memberships` collection,
+  a new visitor number (membership of type `ADULT_VISITOR`) is assigned.
+
+- If there is an active item in the `memberships` collection without an ID, a new ID is assigned for
+  that membership.
+
++ Request (application/json)
+
+    + Headers
+    
+            X-Direct: true
+
+    + Body
+
+            {
+                "full_name": "Johan Setiadi",
+                "short_name": "Johan",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "chinese_name": null,
+                "christian_name": "Paulus",
+                "gender": "M",
+                "date_of_birth": "1990-04-18",
+                "place_of_birth": "Bandung",
+                "nationality": "ID",
+                "race": "CHINESE",
+                "marital_status": "SINGLE",
+                "identities": [
+                    {
+                        "type": "KTP",
+                        "city": "Bandung",
+                        "number": "33500151804900019"
+                    },
+                    {
+                        "type": "PASSPORT",
+                        "number": "B2000888"
+                    }
+                ],
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "johan@example.com",
+                        "isDefault": true
+                    },
+                    {
+                        "label": "WORK",
+                        "email": "johan.setiadi@corporation.com"
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "HOME",
+                        "number": "+62228877555"
+                    },
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "id": "012345",
+                        "since": "2006-04-01"
+                    },
+                    {
+                        "type": "TEENS",
+                        "id": "004321",
+                        "since": "2001-08-01",
+                        "until": "2006-04-01"
+                    },
+                    {
+                        "type": "SUNDAY_SCHOOL",
+                        "id": "G3910",
+                        "since": "1993-02-19",
+                        "until": "2001-08-01"
+                    }
+                ]
+            }
+
++ Response 201 (application/json)
+
+    + Headers
+
+            Location: /people/012345
+
+    + Body
+
+            {
+                "id": "012345",
+                "created_at": "2017-03-01T01:40:51Z",
+                "modified_at": "2017-03-01T01:40:51Z",
+                "full_name": "Johan Setiadi",
+                "short_name": "Johan",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "chinese_name": null,
+                "christian_name": "Paulus",
+                "gender": "M",
+                "date_of_birth": "1990-04-18",
+                "place_of_birth": "Bandung",
+                "nationality": "ID",
+                "race": "CHINESE",
+                "marital_status": "SINGLE",
+                "identities": [
+                    {
+                        "type": "KTP",
+                        "city": "Bandung",
+                        "number": "33500151804900019"
+                    },
+                    {
+                        "type": "PASSPORT",
+                        "number": "B2000888"
+                    }
+                ],
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "johan@example.com",
+                        "isDefault": true
+                    },
+                    {
+                        "label": "WORK",
+                        "email": "johan.setiadi@corporation.com"
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "HOME",
+                        "number": "+62228877555"
+                    },
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "id": "012345",
+                        "since": "2006-04-01"
+                    },
+                    {
+                        "type": "TEENS",
+                        "id": "004321",
+                        "since": "2001-08-01",
+                        "until": "2006-04-01"
+                    },
+                    {
+                        "type": "SUNDAY_SCHOOL",
+                        "id": "G3910",
+                        "since": "1993-02-19",
+                        "until": "2001-08-01"
+                    }
+                ]
+            }
+            
++ Response 202 (application/json)
+
+        {
+            "request": {
+                "id": "32b3d10bd4b945c89a72f9a4858f24f1",
+                "type": "CREATE_PERSON",
+                "status": "PENDING",
+                "created_at": "2017-03-01T01:40:51Z",
+                "modified_at": "2017-03-01T01:40:51Z",
+                "links": [
+                    {
+                        "rel": "self",
+                        "href": "/api/v1/requests/32b3d10bd4b945c89a72f9a4858f24f1"
+                    }
+                ]
+            },
+            "person": {
+                "full_name": "Johan Setiadi",
+                "short_name": "Johan",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "chinese_name": null,
+                "christian_name": "Paulus",
+                "gender": "M",
+                "date_of_birth": "1990-04-18",
+                "place_of_birth": "Bandung",
+                "nationality": "ID",
+                "race": "CHINESE",
+                "marital_status": "SINGLE",
+                "identities": [
+                    {
+                        "type": "KTP",
+                        "city": "Bandung",
+                        "number": "33500151804900019"
+                    },
+                    {
+                        "type": "PASSPORT",
+                        "number": "B2000888"
+                    }
+                ],
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "johan@example.com",
+                        "isDefault": true
+                    },
+                    {
+                        "label": "WORK",
+                        "email": "johan.setiadi@corporation.com"
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "HOME",
+                        "number": "+62228877555"
+                    },
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "id": "012345",
+                        "since": "2006-04-01"
+                    },
+                    {
+                        "type": "TEENS",
+                        "id": "004321",
+                        "since": "2001-08-01",
+                        "until": "2006-04-01"
+                    },
+                    {
+                        "type": "SUNDAY_SCHOOL",
+                        "id": "G3910",
+                        "since": "1993-02-19",
+                        "until": "2001-08-01"
+                    }
+                ]
+            }
+        }
+        
+### Person [/people/{id}]
+
+#### Retrieve person details [GET]
+
+Provides complete personal information about a person. Some information, such as service involvement,
+family details, education, and work are provided separately. Use the `links` to request for those
+information.
+
++ Response 200 (application/json)
+    
+        {
+            "id": "674b03d67bbb4d66b7d63f4412ddf264",
+            "created_at": "2017-03-01T01:40:51Z",
+            "modified_at": "2017-03-04T12:22:04Z",
+            "full_name": "Johan Setiadi",
+            "short_name": "Johan",
+            "site": "SETRASARI",
+            "service": "SETRASARI-2",
+            "status": "ACTIVE",
+            "chinese_name": null,
+            "christian_name": "Paulus",
+            "gender": "M",
+            "date_of_birth": "1990-04-18",
+            "place_of_birth": "Bandung",
+            "age": 26
+            "nationality": "ID",
+            "race": "CHINESE",
+            "marital_status": "SINGLE",
+            "identities": [
+                {
+                    "type": "KTP",
+                    "city": "Bandung",
+                    "number": "33500151804900019"
+                },
+                {
+                    "type": "PASSPORT",
+                    "number": "B2000888"
+                }
+            ],
+            "addresses": [
+                {
+                    "label": "HOME",
+                    "street": "Jalan Budiasih III No. 7",
+                    "city": "Bandung",
+                    "province": "Jawa Barat",
+                    "country": "Indonesia",
+                    "postalCode": "40153",
+                    "isDefault": true
+                }
+            ],
+            "emailAddresses": [
+                {
+                    "label": "PERSONAL",
+                    "email": "johan@example.com",
+                    "isDefault": true
+                },
+                {
+                    "label": "WORK",
+                    "email": "johan.setiadi@corporation.com"
+                }
+            ],
+            "phones": [
+                {
+                    "label": "HOME",
+                    "number": "+62228877555"
+                },
+                {
+                    "label": "MOBILE",
+                    "number": "+628128882222",
+                    "isDefault": true,
+                    "services": [
+                        "WHATSAPP",
+                        "LINE"
+                    ]
+                }
+            ],
+            "memberships": [
+                {
+                    "type": "ADULT_MEMBER",
+                    "id": "012345",
+                    "since": "2006-04-01"
+                },
+                {
+                    "type": "TEENS",
+                    "id": "004321",
+                    "since": "2001-08-01",
+                    "until": "2006-04-01"
+                },
+                {
+                    "type": "SUNDAY_SCHOOL",
+                    "id": "G3910",
+                    "since": "1993-02-19",
+                    "until": "2001-08-01"
+                }
+            ]
+        }
+
+#### Update a person [PUT]
+
+By default, updates to a person's particulars are only effected to the system after the details
+have been vetted through by an administrator. Successful update request will result in `202 Accepted`
+response, with a request ID that can be used to check if the person update has been effected.
+
+Direct update of a person is also supported by setting the `X-Direct` header in the request.
+Successful direct update results in `200 OK` response, with the updated person in the response body.
+
+Updates to collection attributes must be completely specified.
+
++ Request
+
+    + Headers
+    
+            X-Direct: true
+
+    + Body
+
+            {
+                "site": "PURI",
+                "service": "PURI-1",
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153"
+                    },
+                    {
+                        "label": "BOARDING",
+                        "street": "Jl. Interkota Indah Blok B2 No. 11, Duri Kosambi, Cengkareng",
+                        "city": "Jakarta Barat",
+                        "province": "DKI Jakarta",
+                        "country": "Indonesia",
+                        "postalCode": "11750",
+                        "isDefault": true
+                    }
+                ]
+            }
+            
++ Response 200
+
+        {
+            "id": "674b03d67bbb4d66b7d63f4412ddf264",
+            "created_at": "2017-03-01T01:40:51Z",
+            "modified_at": "2017-08-12T06:12:45Z",
+            "full_name": "Johan Setiadi",
+            "short_name": "Johan",
+            "site": "PURI",
+            "service": "PURI-1",
+            "status": "ACTIVE",
+            "chinese_name": null,
+            "christian_name": "Paulus",
+            "gender": "M",
+            "date_of_birth": "1990-04-18",
+            "place_of_birth": "Bandung",
+            "age": 26
+            "nationality": "ID",
+            "race": "CHINESE",
+            "marital_status": "SINGLE",
+            "identities": [
+                {
+                    "type": "KTP",
+                    "city": "Bandung",
+                    "number": "33500151804900019"
+                },
+                {
+                    "type": "PASSPORT",
+                    "number": "B2000888"
+                }
+            ],
+            "addresses": [
+                {
+                    "label": "HOME",
+                    "street": "Jalan Budiasih III No. 7",
+                    "city": "Bandung",
+                    "province": "Jawa Barat",
+                    "country": "Indonesia",
+                    "postalCode": "40153"
+                },
+                {
+                    "label": "BOARDING",
+                    "street": "Jl. Interkota Indah Blok B2 No. 11, Duri Kosambi, Cengkareng",
+                    "city": "Jakarta Barat",
+                    "province": "DKI Jakarta",
+                    "country": "Indonesia",
+                    "postalCode": "11750",
+                    "isDefault": true
+                }
+            ],
+            "emailAddresses": [
+                {
+                    "label": "PERSONAL",
+                    "email": "johan@example.com",
+                    "isDefault": true
+                },
+                {
+                    "label": "WORK",
+                    "email": "johan.setiadi@corporation.com"
+                }
+            ],
+            "phones": [
+                {
+                    "label": "HOME",
+                    "number": "+62228877555"
+                },
+                {
+                    "label": "MOBILE",
+                    "number": "+628128882222",
+                    "isDefault": true,
+                    "services": [
+                        "WHATSAPP",
+                        "LINE"
+                    ]
+                }
+            ],
+            "memberships": [
+                {
+                    "type": "ADULT_MEMBER",
+                    "id": "012345",
+                    "since": "2006-04-01"
+                },
+                {
+                    "type": "TEENS",
+                    "id": "004321",
+                    "since": "2001-08-01",
+                    "until": "2006-04-01"
+                },
+                {
+                    "type": "SUNDAY_SCHOOL",
+                    "id": "G3910",
+                    "since": "1993-02-19",
+                    "until": "2001-08-01"
+                }
+            ]
+        }
+
++ Response 202
+
+        {
+            "request": {
+                "id": "f228d9b39c2a4ede9441697381787644",
+                "type": "CREATE_PERSON",
+                "status": "PENDING",
+                "created_at": "2017-08-12T06:12:45Z",
+                "modified_at": "2017-08-12T06:12:45Z",
+                "links": [
+                    {
+                        "rel": "self",
+                        "href": "/api/v1/requests/f228d9b39c2a4ede9441697381787644"
+                    }
+                ]
+            },
+            "person_update": {
+                "site": "PURI",
+                "service": "PURI-1",
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153"
+                    },
+                    {
+                        "label": "BOARDING",
+                        "street": "Jl. Interkota Indah Blok B2 No. 11, Duri Kosambi, Cengkareng",
+                        "city": "Jakarta Barat",
+                        "province": "DKI Jakarta",
+                        "country": "Indonesia",
+                        "postalCode": "11750",
+                        "isDefault": true
+                    }
+                ]
+            }
+        }
+
+#### Remove a person [DELETE]
+
+This action is provided only to correct significant errors in data input, such as duplication of
+a person's record, or a legal request to delist a person's information. All requests must be
+approved by an administrator.
+
++ Response 202
+
+        {
+            "request": {
+                "id": "47c05ac31118498582bc8e3a595fe590",
+                "type": "DELETE_PERSON",
+                "status": "PENDING",
+                "created_at": "2017-06-17T11:54:34Z",
+                "modified_at": "2017-06-17T11:54:34Z",
+                "links": [
+                    {
+                        "rel": "self",
+                        "href": "/api/v1/requests/47c05ac31118498582bc8e3a595fe590"
+                    }
+                ]
+            },
+            "person": {
+                "id": "674b03d67bbb4d66b7d63f4412ddf264"
+            }
+        }
