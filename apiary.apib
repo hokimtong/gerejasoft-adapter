@@ -3,58 +3,92 @@ HOST: https://gii.gerejasoft.com/api/v1
 
 # GII-GerejaSoft
 
-GerejaSoft API for GII provides access to managed church data for use in applications.
+GerejaSoft API for GII provides access to managed church data for use in supporting applications.
 
 The API is intended for server-to-server calls and thus provides full access to authenticated requests,
 without further fine grained authorization. Requests are authenticated with an API Key in the
 `Authorization` header.
 
-## Group People
+REST API conventions:
+- Custom verbs are allowed through `X-HTTP-Method-Override`, but use sparingly.
+- Use HATEOAS styled references (use hypertext `links` to navigate the API).
+  Always include a `self` reference for entities that have an ID.
+- Query references by ID, not by link (in `GET` requests).
+- Update references by link instead of ID (in `POST` and `PUT` requests).
+- No batch operations.
+
+## Group Personal Info
 
 People API provides access to congregation data, including particulars of individual members and visitors.
 
-### People Collection [/people{?limit,offset,sort,site,service,status,full_name,phone,email,identity,membership}]
+### People [/people{?limit,offset,sort,site,service,status,full_name,phone,email,identity,membership,modified_after}]
+
+This resource represents all people in the congregation: members and visitors, adult and children.
 
 #### Search for People [GET]
 
-This method provides a way to search for people whose system ID is not known.
+Members and visitors can be searched by their church site, default service, status,
+name (partial match), phone number, email address, identity card number, and membership number.
 
-The returned information does not include all attributes of a person, but only the basic information,
-including the person's system ID. To retrieve all attributes, use `GET /people/{id}`.
+The response does not include all attributes of a person, but only the basic information,
+including the person's system ID. Only default address, email address, and phone number
+are returned. To retrieve all attributes, use `GET /people/{id}`.
 
 + Parameters
-    + limit:`100` (optional, number) ... Maximum number of people to retrieve
-    + offset:`500` (optional, number) ... Number of records to skip
-    + sort:`+full_name,-age` (optional, string) ... Ascending and descending sorting
-      over multiple fields
-    + site:`PURI` (optional, string) ... Filter for Church site ID attribute
-    + service:`PURI-1` (optional, string) ... Filter for default service attribute
-    + status:`ACTIVE` (optional, enum[string]) ... Filter for person status attribute
+    + limit:`100` (optional, number)
+      Maximum number of people to retrieve.
+      
+    + offset:`500` (optional, number)
+      Number of records to skip.
+      
+    + sort:`+full_name,-date_of_birth` (optional, string)
+      Ascending and descending sorting over multiple fields.
+      
+    + site:`PURI` (optional, string)
+      Filter for Church site ID attribute.
+      
+    + service:`PURI-1` (optional, string)
+      Filter for default service attribute.
+      
+    + status:`ACTIVE` (optional, enum[string])
+      Filter for person status attribute.
         + Members
             + ACTIVE
             + INACTIVE
-            + INACTIVE_PERMANENT,
-    + full_name:`Johan` (optional, string) ... Partial match filter for a person's full name
-    + phone:`08128882222` (optional, string) ... Filter for any phone number of a person,
-      which matches by multiple formats of number, e.g. +628128882222 will also match 08128882222
-    + email:`johan@example.com` (optional, string) ... Filter for any email address of a person
-    + identity:`B2000888` (optional, string) ... Filter for any identity card number of a person
-    + membership:`012345` (optional, string) ... Filter for any membership ID of a person,
-      including past and active memberships
+            + INACTIVE_PERMANENT
+    
+    + full_name:`Jonathan` (optional, string)
+      Partial match filter for a person's full name.
+      
+    + phone:`08128882222` (optional, string)
+      Filter for any phone number of a person, which matches by multiple formats of number,
+      e.g. +628128882222 will also match 08128882222.
+      
+    + email:`jonathan@example.com` (optional, string)
+      Filter for any email address of a person.
+      
+    + identity:`B2000888` (optional, string)
+      Filter for any identity card number of a person.
+      
+    + membership:`012345` (optional, string)
+      Filter for any membership ID of a person, including past and active memberships.
+      
+    + modified_after:`2017-03-01T12:49:50:090Z` (optional, string)
+      Only include people whose record has been changed *and effected* on or after the given
+      timestamp. This parameter is very important for reconciliation purposes.
 
 + Response 200 (application/json)
 
         [
             {
-                "id": "674b03d67bbb4d66b7d63f4412ddf264",
-                "full_name": "Johan Setiadi",
-                "short_name": "Johan",
+                "id": "674b03",
+                "full_name": "Jonathan Setiadi",
+                "short_name": "Didi",
                 "site": "SETRASARI",
                 "service": "SETRASARI-2",
                 "status": "ACTIVE",
                 "gender": "M",
                 "place_of_birth": "Bandung",
-                "age": 26,
                 "addresses": [
                     {
                         "label": "HOME",
@@ -69,7 +103,7 @@ including the person's system ID. To retrieve all attributes, use `GET /people/{
                 "emailAddresses": [
                     {
                         "label": "PERSONAL",
-                        "email": "johan@example.com",
+                        "email": "jonathan@example.com",
                         "isDefault": true
                     }
                 ],
@@ -87,331 +121,46 @@ including the person's system ID. To retrieve all attributes, use `GET /people/{
                 "memberships": [
                     {
                         "type": "ADULT_MEMBER",
-                        "id": "012345",
+                        "member_id": "012345",
                         "since": "2006-04-01"
                     }
-                ]
+                ],
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03"
+                    },
+                    "ministries": {
+                        "href": "/api/v1/people/674b03/ministries"
+                    },
+                    "activities": {
+                        "href": "/api/v1/people/674b03/activities"
+                    },
+                    "activity_summary": {
+                        "href": "/api/v1/people/674b03/activities/summary"
+                    }
+                }
             }
         ]
 
-#### Create a New Person [POST]
+#### Retrieve Person Details [GET /people/{id}]
 
-By default, a new person can be added to the system only after the details have been vetted through
-by an administrator. Successful creation request will result in `202 Accepted` response, with a
-request ID that can be used to check if the person creation has been approved and effected.
+Complete personal information about a person can be retrieved. Some information,
+such as ministry involvement and family details are provided separately.
+Use the `links` to request for those information.
 
-Direct creation of a person is also supported by setting the `X-Direct` header in the request.
-Successful direct creation results in `201 Created` response, with a link to the newly created person.
++ Parameters
 
-Under these circumstances, a new membership ID is assigned to the newly created person:
-
-- If the `memberships` attribute is empty or there is no active item in the `memberships` collection,
-  a new visitor number (membership of type `ADULT_VISITOR`) is assigned.
-
-- If there is an active item in the `memberships` collection without an ID, a new ID is assigned for
-  that membership.
-
-+ Request (application/json)
-
-    + Headers
-    
-            X-Direct: true
-
-    + Body
-
-            {
-                "full_name": "Johan Setiadi",
-                "short_name": "Johan",
-                "site": "SETRASARI",
-                "service": "SETRASARI-2",
-                "status": "ACTIVE",
-                "chinese_name": null,
-                "christian_name": "Paulus",
-                "gender": "M",
-                "date_of_birth": "1990-04-18",
-                "place_of_birth": "Bandung",
-                "nationality": "ID",
-                "race": "CHINESE",
-                "marital_status": "SINGLE",
-                "identities": [
-                    {
-                        "type": "KTP",
-                        "city": "Bandung",
-                        "number": "33500151804900019"
-                    },
-                    {
-                        "type": "PASSPORT",
-                        "number": "B2000888"
-                    }
-                ],
-                "addresses": [
-                    {
-                        "label": "HOME",
-                        "street": "Jalan Budiasih III No. 7",
-                        "city": "Bandung",
-                        "province": "Jawa Barat",
-                        "country": "Indonesia",
-                        "postalCode": "40153",
-                        "isDefault": true
-                    }
-                ],
-                "emailAddresses": [
-                    {
-                        "label": "PERSONAL",
-                        "email": "johan@example.com",
-                        "isDefault": true
-                    },
-                    {
-                        "label": "WORK",
-                        "email": "johan.setiadi@corporation.com"
-                    }
-                ],
-                "phones": [
-                    {
-                        "label": "HOME",
-                        "number": "+62228877555"
-                    },
-                    {
-                        "label": "MOBILE",
-                        "number": "+628128882222",
-                        "isDefault": true,
-                        "services": [
-                            "WHATSAPP",
-                            "LINE"
-                        ]
-                    }
-                ],
-                "memberships": [
-                    {
-                        "type": "ADULT_MEMBER",
-                        "id": "012345",
-                        "since": "2006-04-01"
-                    },
-                    {
-                        "type": "TEENS",
-                        "id": "004321",
-                        "since": "2001-08-01",
-                        "until": "2006-04-01"
-                    },
-                    {
-                        "type": "SUNDAY_SCHOOL",
-                        "id": "G3910",
-                        "since": "1993-02-19",
-                        "until": "2001-08-01"
-                    }
-                ]
-            }
-
-+ Response 201 (application/json)
-
-    + Headers
-
-            Location: /people/012345
-
-    + Body
-
-            {
-                "id": "012345",
-                "created_at": "2017-03-01T01:40:51Z",
-                "modified_at": "2017-03-01T01:40:51Z",
-                "full_name": "Johan Setiadi",
-                "short_name": "Johan",
-                "site": "SETRASARI",
-                "service": "SETRASARI-2",
-                "status": "ACTIVE",
-                "chinese_name": null,
-                "christian_name": "Paulus",
-                "gender": "M",
-                "date_of_birth": "1990-04-18",
-                "place_of_birth": "Bandung",
-                "nationality": "ID",
-                "race": "CHINESE",
-                "marital_status": "SINGLE",
-                "identities": [
-                    {
-                        "type": "KTP",
-                        "city": "Bandung",
-                        "number": "33500151804900019"
-                    },
-                    {
-                        "type": "PASSPORT",
-                        "number": "B2000888"
-                    }
-                ],
-                "addresses": [
-                    {
-                        "label": "HOME",
-                        "street": "Jalan Budiasih III No. 7",
-                        "city": "Bandung",
-                        "province": "Jawa Barat",
-                        "country": "Indonesia",
-                        "postalCode": "40153",
-                        "isDefault": true
-                    }
-                ],
-                "emailAddresses": [
-                    {
-                        "label": "PERSONAL",
-                        "email": "johan@example.com",
-                        "isDefault": true
-                    },
-                    {
-                        "label": "WORK",
-                        "email": "johan.setiadi@corporation.com"
-                    }
-                ],
-                "phones": [
-                    {
-                        "label": "HOME",
-                        "number": "+62228877555"
-                    },
-                    {
-                        "label": "MOBILE",
-                        "number": "+628128882222",
-                        "isDefault": true,
-                        "services": [
-                            "WHATSAPP",
-                            "LINE"
-                        ]
-                    }
-                ],
-                "memberships": [
-                    {
-                        "type": "ADULT_MEMBER",
-                        "id": "012345",
-                        "since": "2006-04-01"
-                    },
-                    {
-                        "type": "TEENS",
-                        "id": "004321",
-                        "since": "2001-08-01",
-                        "until": "2006-04-01"
-                    },
-                    {
-                        "type": "SUNDAY_SCHOOL",
-                        "id": "G3910",
-                        "since": "1993-02-19",
-                        "until": "2001-08-01"
-                    }
-                ]
-            }
-            
-+ Response 202 (application/json)
-
-        {
-            "request": {
-                "id": "32b3d10bd4b945c89a72f9a4858f24f1",
-                "type": "CREATE_PERSON",
-                "status": "PENDING",
-                "created_at": "2017-03-01T01:40:51Z",
-                "modified_at": "2017-03-01T01:40:51Z",
-                "links": [
-                    {
-                        "rel": "self",
-                        "href": "/api/v1/requests/32b3d10bd4b945c89a72f9a4858f24f1"
-                    }
-                ]
-            },
-            "person": {
-                "full_name": "Johan Setiadi",
-                "short_name": "Johan",
-                "site": "SETRASARI",
-                "service": "SETRASARI-2",
-                "status": "ACTIVE",
-                "chinese_name": null,
-                "christian_name": "Paulus",
-                "gender": "M",
-                "date_of_birth": "1990-04-18",
-                "place_of_birth": "Bandung",
-                "nationality": "ID",
-                "race": "CHINESE",
-                "marital_status": "SINGLE",
-                "identities": [
-                    {
-                        "type": "KTP",
-                        "city": "Bandung",
-                        "number": "33500151804900019"
-                    },
-                    {
-                        "type": "PASSPORT",
-                        "number": "B2000888"
-                    }
-                ],
-                "addresses": [
-                    {
-                        "label": "HOME",
-                        "street": "Jalan Budiasih III No. 7",
-                        "city": "Bandung",
-                        "province": "Jawa Barat",
-                        "country": "Indonesia",
-                        "postalCode": "40153",
-                        "isDefault": true
-                    }
-                ],
-                "emailAddresses": [
-                    {
-                        "label": "PERSONAL",
-                        "email": "johan@example.com",
-                        "isDefault": true
-                    },
-                    {
-                        "label": "WORK",
-                        "email": "johan.setiadi@corporation.com"
-                    }
-                ],
-                "phones": [
-                    {
-                        "label": "HOME",
-                        "number": "+62228877555"
-                    },
-                    {
-                        "label": "MOBILE",
-                        "number": "+628128882222",
-                        "isDefault": true,
-                        "services": [
-                            "WHATSAPP",
-                            "LINE"
-                        ]
-                    }
-                ],
-                "memberships": [
-                    {
-                        "type": "ADULT_MEMBER",
-                        "id": "012345",
-                        "since": "2006-04-01"
-                    },
-                    {
-                        "type": "TEENS",
-                        "id": "004321",
-                        "since": "2001-08-01",
-                        "until": "2006-04-01"
-                    },
-                    {
-                        "type": "SUNDAY_SCHOOL",
-                        "id": "G3910",
-                        "since": "1993-02-19",
-                        "until": "2001-08-01"
-                    }
-                ]
-            }
-        }
-        
-### Person [/people/{id}]
-
-#### Retrieve person details [GET]
-
-Provides complete personal information about a person. Some information, such as service involvement,
-family details, education, and work are provided separately. Use the `links` to request for those
-information.
+    + id:`674b03` (String, required)
+      Person system ID.
 
 + Response 200 (application/json)
     
         {
-            "id": "674b03d67bbb4d66b7d63f4412ddf264",
+            "id": "674b03",
             "created_at": "2017-03-01T01:40:51Z",
             "modified_at": "2017-03-04T12:22:04Z",
-            "full_name": "Johan Setiadi",
-            "short_name": "Johan",
+            "full_name": "Jonathan Setiadi",
+            "short_name": "Didi",
             "site": "SETRASARI",
             "service": "SETRASARI-2",
             "status": "ACTIVE",
@@ -420,7 +169,6 @@ information.
             "gender": "M",
             "date_of_birth": "1990-04-18",
             "place_of_birth": "Bandung",
-            "age": 26
             "nationality": "ID",
             "race": "CHINESE",
             "marital_status": "SINGLE",
@@ -449,12 +197,12 @@ information.
             "emailAddresses": [
                 {
                     "label": "PERSONAL",
-                    "email": "johan@example.com",
+                    "email": "jonathan@example.com",
                     "isDefault": true
                 },
                 {
                     "label": "WORK",
-                    "email": "johan.setiadi@corporation.com"
+                    "email": "jonathan.setiadi@corporation.com"
                 }
             ],
             "phones": [
@@ -475,40 +223,553 @@ information.
             "memberships": [
                 {
                     "type": "ADULT_MEMBER",
-                    "id": "012345",
+                    "member_id": "012345",
                     "since": "2006-04-01"
                 },
                 {
                     "type": "TEENS",
-                    "id": "004321",
+                    "member_id": "004321",
                     "since": "2001-08-01",
                     "until": "2006-04-01"
                 },
                 {
                     "type": "SUNDAY_SCHOOL",
-                    "id": "G3910",
+                    "member_id": "G3910",
                     "since": "1993-02-19",
                     "until": "2001-08-01"
                 }
-            ]
+            ],
+            "education": [
+                {
+                    "level": "UNDERGRADUATE",
+                    "institution": "Institut Teknologi Bandung",
+                    "major": "Teknik Pangan",
+                    "startYear": 2010,
+                    "endYear": 2014
+                },
+                {
+                    "level": "HIGH_SCHOOL",
+                    "institution": "SMA Kristen BPK Penabur 1 Bandung",
+                    "startYear": 2008,
+                    "endYear": 2010
+                },
+                {
+                    "level": "HIGH_SCHOOL",
+                    "institution": "SMA Katolik St. Aloysius",
+                    "startYear": 2007,
+                    "endYear": 2008
+                }
+            ],
+            "jobs": [
+                {
+                    "type": "FULL_TIME",
+                    "company": "PT. Minora Abadi",
+                    "job_title": "Quality assurance",
+                    "startDate": "2016-04-01"
+                },
+                {
+                    "type": "INTERNSHIP",
+                    "company": "PT. Indodrinks Berjaya",
+                    "job_title": "Intern",
+                    "startDate": "2013-01-05",
+                    "endDate": "2013-06-08"
+                }
+            ],
+            "historical": {
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Setra Indah IV No. 22",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40163",
+                        "startDate": "2012-09-10",
+                        "endDate": "2015-03-22"
+                    },
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Rancamanyar II No. 108",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40275",
+                        "endDate": "2012-09-10"
+                    }
+                ],
+                "sites": [
+                    {
+                        "site": "BATUNUNGGAL",
+                        "endDate": "2012-09-16"
+                    }
+                ]
+            },
+            "links": {
+                "self": {
+                    "href": "/api/v1/people/674b03"
+                },
+                "ministries": {
+                    "href": "/api/v1/people/674b03/ministries"
+                },
+                "activities": {
+                    "href": "/api/v1/people/674b03/activities"
+                },
+                "activity_summary": {
+                    "href": "/api/v1/people/674b03/activities/summary"
+                }
+            }
         }
 
-#### Update a person [PUT]
+#### Create a New Person [POST]
+
+By default, a new person can be added to the system only after the details have been vetted through
+by an administrator. Successful creation request will result in `202 Accepted` response, with a
+request ID that can be used to check if the person creation has been approved and effected.
+
+Direct creation of a person is also supported by setting the `X-Skip-Workflow` header in the request.
+Successful direct creation results in `201 Created` response, with a link to the newly created person.
+
+Under these circumstances, a new membership ID is assigned to the newly created person:
+
+- If the `memberships` attribute is empty or there is no active item in the `memberships` collection,
+  a new visitor number (membership of type `ADULT_VISITOR`) is assigned.
+
+- If there is an active item in the `memberships` collection without an ID, a new ID is assigned for
+  that membership.
+
++ Request (application/json)
+
+    + Headers
+    
+            X-Skip-Workflow: true
+
+    + Body
+
+            {
+                "full_name": "Jonathan Setiadi",
+                "short_name": "Didi",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "chinese_name": null,
+                "christian_name": "Paulus",
+                "gender": "M",
+                "date_of_birth": "1990-04-18",
+                "place_of_birth": "Bandung",
+                "nationality": "ID",
+                "race": "CHINESE",
+                "marital_status": "SINGLE",
+                "identities": [
+                    {
+                        "type": "KTP",
+                        "city": "Bandung",
+                        "number": "33500151804900019"
+                    },
+                    {
+                        "type": "PASSPORT",
+                        "number": "B2000888"
+                    }
+                ],
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "jonathan@example.com",
+                        "isDefault": true
+                    },
+                    {
+                        "label": "WORK",
+                        "email": "jonathan.setiadi@corporation.com"
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "HOME",
+                        "number": "+62228877555"
+                    },
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "member_id": "012345",
+                        "since": "2006-04-01"
+                    },
+                    {
+                        "type": "TEENS",
+                        "member_id": "004321",
+                        "since": "2001-08-01",
+                        "until": "2006-04-01"
+                    },
+                    {
+                        "type": "SUNDAY_SCHOOL",
+                        "member_id": "G3910",
+                        "since": "1993-02-19",
+                        "until": "2001-08-01"
+                    }
+                ],
+                "education": [
+                    {
+                        "level": "UNDERGRADUATE",
+                        "institution": "Institut Teknologi Bandung",
+                        "major": "Teknik Pangan",
+                        "startYear": 2010,
+                        "endYear": 2014
+                    },
+                    {
+                        "level": "HIGH_SCHOOL",
+                        "institution": "SMA Kristen BPK Penabur 1 Bandung",
+                        "startYear": 2008,
+                        "endYear": 2010
+                    },
+                    {
+                        "level": "HIGH_SCHOOL",
+                        "institution": "SMA Katolik St. Aloysius",
+                        "startYear": 2007,
+                        "endYear": 2008
+                    }
+                ],
+                "jobs": [
+                    {
+                        "type": "FULL_TIME",
+                        "company": "PT. Minora Abadi",
+                        "job_title": "Quality assurance",
+                        "startDate": "2016-04-01"
+                    },
+                    {
+                        "type": "INTERNSHIP",
+                        "company": "PT. Indodrinks Berjaya",
+                        "job_title": "Intern",
+                        "startDate": "2013-01-05",
+                        "endDate": "2013-06-08"
+                    }
+                ]
+            }
+
++ Response 201 (application/json)
+
+    + Headers
+
+            Location: /api/v1/people/674b03
+
+    + Body
+
+            {
+                "id": "012345",
+                "created_at": "2017-03-01T01:40:51Z",
+                "modified_at": "2017-03-01T01:40:51Z",
+                "full_name": "Jonathan Setiadi",
+                "short_name": "Didi",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "chinese_name": null,
+                "christian_name": "Paulus",
+                "gender": "M",
+                "date_of_birth": "1990-04-18",
+                "place_of_birth": "Bandung",
+                "nationality": "ID",
+                "race": "CHINESE",
+                "marital_status": "SINGLE",
+                "identities": [
+                    {
+                        "type": "KTP",
+                        "city": "Bandung",
+                        "number": "33500151804900019"
+                    },
+                    {
+                        "type": "PASSPORT",
+                        "number": "B2000888"
+                    }
+                ],
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "jonathan@example.com",
+                        "isDefault": true
+                    },
+                    {
+                        "label": "WORK",
+                        "email": "jonathan.setiadi@corporation.com"
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "HOME",
+                        "number": "+62228877555"
+                    },
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "member_id": "012345",
+                        "since": "2006-04-01"
+                    },
+                    {
+                        "type": "TEENS",
+                        "member_id": "004321",
+                        "since": "2001-08-01",
+                        "until": "2006-04-01"
+                    },
+                    {
+                        "type": "SUNDAY_SCHOOL",
+                        "member_id": "G3910",
+                        "since": "1993-02-19",
+                        "until": "2001-08-01"
+                    }
+                ],
+                "education": [
+                    {
+                        "level": "UNDERGRADUATE",
+                        "institution": "Institut Teknologi Bandung",
+                        "major": "Teknik Pangan",
+                        "startYear": 2010,
+                        "endYear": 2014
+                    },
+                    {
+                        "level": "HIGH_SCHOOL",
+                        "institution": "SMA Kristen BPK Penabur 1 Bandung",
+                        "startYear": 2008,
+                        "endYear": 2010
+                    },
+                    {
+                        "level": "HIGH_SCHOOL",
+                        "institution": "SMA Katolik St. Aloysius",
+                        "startYear": 2007,
+                        "endYear": 2008
+                    }
+                ],
+                "jobs": [
+                    {
+                        "type": "FULL_TIME",
+                        "company": "PT. Minora Abadi",
+                        "job_title": "Quality assurance",
+                        "startDate": "2016-04-01"
+                    },
+                    {
+                        "type": "INTERNSHIP",
+                        "company": "PT. Indodrinks Berjaya",
+                        "job_title": "Intern",
+                        "startDate": "2013-01-05",
+                        "endDate": "2013-06-08"
+                    }
+                ],
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03"
+                    },
+                    "ministries": {
+                        "href": "/api/v1/people/674b03/ministries"
+                    },
+                    "activities": {
+                        "href": "/api/v1/people/674b03/activities"
+                    },
+                    "activity_summary": {
+                        "href": "/api/v1/people/674b03/activities/summary"
+                    }
+                }
+            }
+            
++ Response 202 (application/json)
+
+        {
+            "request": {
+                "id": "32b3d10bd4b945c89a72f9a4858f24f1",
+                "type": "CREATE_PERSON",
+                "status": "PENDING",
+                "created_at": "2017-03-01T01:40:51Z",
+                "modified_at": "2017-03-01T01:40:51Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/requests/32b3d10bd4b945c89a72f9a4858f24f1"
+                    },
+                    "submitted_by": {
+                        "href": "/api/v1/people/f36034",
+                        "full_name": "Patrick Sugiarto"
+                    }
+                }
+            },
+            "person": {
+                "full_name": "Jonathan Setiadi",
+                "short_name": "Didi",
+                "site": "SETRASARI",
+                "service": "SETRASARI-2",
+                "status": "ACTIVE",
+                "chinese_name": null,
+                "christian_name": "Paulus",
+                "gender": "M",
+                "date_of_birth": "1990-04-18",
+                "place_of_birth": "Bandung",
+                "nationality": "ID",
+                "race": "CHINESE",
+                "marital_status": "SINGLE",
+                "identities": [
+                    {
+                        "type": "KTP",
+                        "city": "Bandung",
+                        "number": "33500151804900019"
+                    },
+                    {
+                        "type": "PASSPORT",
+                        "number": "B2000888"
+                    }
+                ],
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Budiasih III No. 7",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40153",
+                        "isDefault": true
+                    }
+                ],
+                "emailAddresses": [
+                    {
+                        "label": "PERSONAL",
+                        "email": "jonathan@example.com",
+                        "isDefault": true
+                    },
+                    {
+                        "label": "WORK",
+                        "email": "jonathan.setiadi@corporation.com"
+                    }
+                ],
+                "phones": [
+                    {
+                        "label": "HOME",
+                        "number": "+62228877555"
+                    },
+                    {
+                        "label": "MOBILE",
+                        "number": "+628128882222",
+                        "isDefault": true,
+                        "services": [
+                            "WHATSAPP",
+                            "LINE"
+                        ]
+                    }
+                ],
+                "memberships": [
+                    {
+                        "type": "ADULT_MEMBER",
+                        "member_id": "012345",
+                        "since": "2006-04-01"
+                    },
+                    {
+                        "type": "TEENS",
+                        "member_id": "004321",
+                        "since": "2001-08-01",
+                        "until": "2006-04-01"
+                    },
+                    {
+                        "type": "SUNDAY_SCHOOL",
+                        "member_id": "G3910",
+                        "since": "1993-02-19",
+                        "until": "2001-08-01"
+                    }
+                ],
+                "education": [
+                    {
+                        "level": "UNDERGRADUATE",
+                        "institution": "Institut Teknologi Bandung",
+                        "major": "Teknik Pangan",
+                        "startYear": 2010,
+                        "endYear": 2014
+                    },
+                    {
+                        "level": "HIGH_SCHOOL",
+                        "institution": "SMA Kristen BPK Penabur 1 Bandung",
+                        "startYear": 2008,
+                        "endYear": 2010
+                    },
+                    {
+                        "level": "HIGH_SCHOOL",
+                        "institution": "SMA Katolik St. Aloysius",
+                        "startYear": 2007,
+                        "endYear": 2008
+                    }
+                ],
+                "jobs": [
+                    {
+                        "type": "FULL_TIME",
+                        "company": "PT. Minora Abadi",
+                        "job_title": "Quality assurance",
+                        "startDate": "2016-04-01"
+                    },
+                    {
+                        "type": "INTERNSHIP",
+                        "company": "PT. Indodrinks Berjaya",
+                        "job_title": "Intern",
+                        "startDate": "2013-01-05",
+                        "endDate": "2013-06-08"
+                    }
+                ]
+            }
+        }
+
+#### Update a Person [PUT /people/{id}]
 
 By default, updates to a person's particulars are only effected to the system after the details
 have been vetted through by an administrator. Successful update request will result in `202 Accepted`
 response, with a request ID that can be used to check if the person update has been effected.
 
-Direct update of a person is also supported by setting the `X-Direct` header in the request.
+Direct update of a person is also supported by setting the `X-Skip-Workflow` header in the request.
 Successful direct update results in `200 OK` response, with the updated person in the response body.
 
 Updates to collection attributes must be completely specified.
 
-+ Request
+Changes to `address` and `site` will automatically cause historical data to be added.
+
++ Parameters
+
+    + id:`674b03` (String, required)
+      Person system ID.
+
++ Request (application/json)
 
     + Headers
     
-            X-Direct: true
+            X-Skip-Workflow: true
 
     + Body
 
@@ -536,14 +797,14 @@ Updates to collection attributes must be completely specified.
                 ]
             }
             
-+ Response 200
++ Response 200 (application/json)
 
         {
-            "id": "674b03d67bbb4d66b7d63f4412ddf264",
+            "id": "674b03",
             "created_at": "2017-03-01T01:40:51Z",
             "modified_at": "2017-08-12T06:12:45Z",
-            "full_name": "Johan Setiadi",
-            "short_name": "Johan",
+            "full_name": "Jonathan Setiadi",
+            "short_name": "Didi",
             "site": "PURI",
             "service": "PURI-1",
             "status": "ACTIVE",
@@ -552,7 +813,6 @@ Updates to collection attributes must be completely specified.
             "gender": "M",
             "date_of_birth": "1990-04-18",
             "place_of_birth": "Bandung",
-            "age": 26
             "nationality": "ID",
             "race": "CHINESE",
             "marital_status": "SINGLE",
@@ -589,12 +849,12 @@ Updates to collection attributes must be completely specified.
             "emailAddresses": [
                 {
                     "label": "PERSONAL",
-                    "email": "johan@example.com",
+                    "email": "jonathan@example.com",
                     "isDefault": true
                 },
                 {
                     "label": "WORK",
-                    "email": "johan.setiadi@corporation.com"
+                    "email": "jonathan.setiadi@corporation.com"
                 }
             ],
             "phones": [
@@ -615,25 +875,73 @@ Updates to collection attributes must be completely specified.
             "memberships": [
                 {
                     "type": "ADULT_MEMBER",
-                    "id": "012345",
+                    "member_id": "012345",
                     "since": "2006-04-01"
                 },
                 {
                     "type": "TEENS",
-                    "id": "004321",
+                    "member_id": "004321",
                     "since": "2001-08-01",
                     "until": "2006-04-01"
                 },
                 {
                     "type": "SUNDAY_SCHOOL",
-                    "id": "G3910",
+                    "member_id": "G3910",
                     "since": "1993-02-19",
                     "until": "2001-08-01"
                 }
-            ]
+            ],
+            "historical": {
+                "addresses": [
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Setra Indah IV No. 22",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40163",
+                        "startDate": "2012-09-10",
+                        "endDate": "2015-03-22"
+                    },
+                    {
+                        "label": "HOME",
+                        "street": "Jalan Rancamanyar II No. 108",
+                        "city": "Bandung",
+                        "province": "Jawa Barat",
+                        "country": "Indonesia",
+                        "postalCode": "40275",
+                        "endDate": "2012-09-10"
+                    }
+                ],
+                "sites": [
+                    {
+                        "site": "BATUNUNGGAL",
+                        "endDate": "2012-09-16"
+                    },
+                    {
+                        "site": "SETRASARI",
+                        "startDate": "2012-09-16",
+                        "endDate": "2016-05-08"
+                    }
+                ]
+            },
+            "links": {
+                "self": {
+                    "href": "/api/v1/people/674b03"
+                },
+                "ministries": {
+                    "href": "/api/v1/people/674b03/ministries"
+                },
+                "activities": {
+                    "href": "/api/v1/people/674b03/activities"
+                },
+                "activity_summary": {
+                    "href": "/api/v1/people/674b03/activities/summary"
+                }
+            }
         }
 
-+ Response 202
++ Response 202 (application/json)
 
         {
             "request": {
@@ -642,12 +950,15 @@ Updates to collection attributes must be completely specified.
                 "status": "PENDING",
                 "created_at": "2017-08-12T06:12:45Z",
                 "modified_at": "2017-08-12T06:12:45Z",
-                "links": [
-                    {
-                        "rel": "self",
+                "links": {
+                    "self": {
                         "href": "/api/v1/requests/f228d9b39c2a4ede9441697381787644"
+                    },
+                    "submitted_by": {
+                        "href": "/api/v1/people/f36034",
+                        "full_name": "Patrick Sugiarto"
                     }
-                ]
+                }
             },
             "person_update": {
                 "site": "PURI",
@@ -674,13 +985,18 @@ Updates to collection attributes must be completely specified.
             }
         }
 
-#### Remove a person [DELETE]
+#### Remove a Person [DELETE /people/{id}]
 
-This action is provided only to correct significant errors in data input, such as duplication of
-a person's record, or a legal request to delist a person's information. All requests must be
-approved by an administrator.
+To correct significant errors in data input, such as duplication of a person's record,
+or a legal request to delist a person's information, a person can be removed from the system.
+All removal requests must be approved by an administrator.
 
-+ Response 202
++ Parameters
+
+    + id:`674b03` (String, required)
+      Person system ID.
+
++ Response 202 (application/json)
 
         {
             "request": {
@@ -689,14 +1005,753 @@ approved by an administrator.
                 "status": "PENDING",
                 "created_at": "2017-06-17T11:54:34Z",
                 "modified_at": "2017-06-17T11:54:34Z",
-                "links": [
-                    {
-                        "rel": "self",
+                "links": {
+                    "self": {
                         "href": "/api/v1/requests/47c05ac31118498582bc8e3a595fe590"
                     }
-                ]
+                }
             },
             "person": {
-                "id": "674b03d67bbb4d66b7d63f4412ddf264"
+                "id": "674b03"
             }
         }
+
+### Family Information [/people/{person_id}/relatives{?depth}]
+
+This resource tracks the people that a person is related to.
+
++ Parameters
+
+    + person_id:`674b03` (String, required)
+      Person system ID
+
+#### List a Person's Family Connections [GET]
+
+It is possible that some family members are not tracked in the Church system, and has no
+`Person` object to represent them. Immediate family connection refers to `FATHER`, `MOTHER`,
+`SIBLING`, `HUSBAND`, and `WIFE` only. E.g. a grandfather is a 2nd degree connection,
+and a cousin is a 3rd degree connection, even if the connection is defined on the person
+directly.
+
+The `id` and `self` refers to the connection, not the person.
+
++ Parameters
+
+    + depth:`2` (optional, number) 
+      Depth of connection to be included (default: 1 - only immediate family members).
+      Max: 6 (retrieves up to cousin of cousin)
+
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "e66e55eaf2384575a8b287c05bae8407",
+                "rel": "FATHER",
+                "full_name": "Hendarko Sutadi",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/relatives/e66e55eaf2384575a8b287c05bae8407"
+                    }
+                }
+            },
+            {
+                "id": "e4bea1ae8f4941849ce11099cb2b333f",
+                "rel": "MOTHER",
+                "full_name": "Fani Wijaya",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/relatives/e4bea1ae8f4941849ce11099cb2b333f"
+                    },
+                    "person": {
+                        "href": "/api/v1/people/924b1a"
+                    }
+                }
+            },
+            {
+                "id": "53bbffb34f13433e85e7265582a006fb",
+                "rel": "SISTER_OLDER",
+                "full_name": "Janice Sutadi",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/relatives/53bbffb34f13433e85e7265582a006fb"
+                    },
+                    "person": {
+                        "href": "/api/v1/people/788fc0"
+                    }
+                }
+            },
+            {
+                "id": "6854977cc3d6426a8a54df1fb9c72693",
+                "rel": "UNCLE",
+                "full_name": "Kenny Teguh Sutadi",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/relatives/6854977cc3d6426a8a54df1fb9c72693"
+                    },
+                    "person": {
+                        "href": "/api/v1/people/1383bb"
+                    }
+                }
+            },
+            {
+                "id": "741cd9b77ac642b3920f24591995964a",
+                "rel": "GRANDFATHER",
+                "full_name": "Wee Chee Meng",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/relatives/741cd9b77ac642b3920f24591995964a"
+                    },
+                    "via": {
+                        "href": "/api/v1/people/924b1a"
+                    }
+                }
+            }
+        ]
+        
+#### Create a Family Connection [POST]
+
+Family connection can be created with or without `Person` link. If the `Person` is tracked in the system,
+only the link need to be specified.
+
++ Request with person (application/json)
+
+        {  
+            "rel": "COUSIN",
+            "links": {
+                "person": {
+                    "href": "/api/v1/people/a4be79"
+                }
+            }
+        }
+        
++ Request without person (application/json)
+
+        {
+            "rel": "COUSIN",
+            "full_name": "Samuel Adi Wijaya"
+        }
+
++ Response 201 (application/json)
+
+        {
+            "id": "2ac0d5c293f143419245ca6970e4ee53",
+            "rel": "COUSIN",
+            "full_name": "Samuel Adi Wijaya",
+            "links": {
+                "self": {
+                    "href": "/api/v1/people/674b03/relatives/2ac0d5c293f143419245ca6970e4ee53"
+                },
+                "via": {
+                    "href": "/api/v1/people/a4be79"
+                }
+            }
+        }
+
+#### Remove a Family Connection [DELETE /people/{person_id}/relatives/{id}]
+
+A family connection can be removed either because of incorrect data or redundant information.
+For example, if *Alvin* has *Benny* as his `FATHER` and *Benny* has *Willy* as his `SIBLING`,
+it is not necessary to add a relation that *Willy* is *Alvin*'s `UNCLE`.
+
++ Response 204
+
+### Ministry Involvement [/people/{person_id}/ministries]
+
+This resource represents a person's involvement in various Church ministries.
+
++ Parameters
+
+    + person_id:`674b03` (String, required)
+      Person system ID
+
+#### List a Person's Ministry Involvements [GET]
+
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "108040a2d5c146b5ba14036c0c835752",
+                "category": "SUNDAY_SCHOOL",
+                "role": "TEACHER",
+                "specializations": [
+                    "UNDER-3"
+                ],
+                "site": "SETRASARI",
+                "since": "2010-05-12",
+                "until": "2017-02-19"
+            },
+            {
+                "id": "038d879dec97477f9e2fae56ad192484",
+                "category": "YOUTH_CHOIR",
+                "role": "SINGER",
+                "specializations": [
+                    "TENOR",
+                    "SOLO"
+                ],
+                "site": null,
+                "since": "2009-08-10"
+            }
+        ]
+        
+#### Retrieve a Ministry Involvement [GET /people/{person_id}/ministries/{id}]
+
++ Parameters
+
+    + id:`108040a2d5c146b5ba14036c0c835752` (String, required) ... Ministry involvement system ID
+    
++ Response 200 (application/json)
+
+        {
+            "id": "108040a2d5c146b5ba14036c0c835752",
+            "category": "SUNDAY_SCHOOL",
+            "role": "TEACHER",
+            "specializations": [
+                "UNDER-3"
+            ],
+            "site": "SETRASARI",
+            "since": "2010-05-12",
+            "until": "2017-02-19",
+            "links": {
+                "self": {
+                    "href": "/api/v1/people/674b03/ministries/108040a2d5c146b5ba14036c0c835752"
+                }
+            }
+        }
+        
+#### Add a Ministry Involvement [POST]
+
++ Request (application/json)
+
+        {
+            "category": "SUNDAY_SERVICE_MUSIC",
+            "role": "SINGER",
+            "specializations": [ ],
+            "site": "PURI",
+            "since": "2017-03-12"
+        }
+
++ Response 201 (application/json)
+
+    + Headers
+    
+            Location: /api/v1/people/674b03/ministries/8c4aa9ec57ec47448d164b33887a31e4
+        
+    + Body
+    
+            {
+                "id": "8c4aa9ec57ec47448d164b33887a31e4",
+                "category": "SUNDAY_SERVICE_MUSIC",
+                "role": "SINGER",
+                "specializations": [ ],
+                "site": "PURI",
+                "since": "2017-03-12",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/ministries/8c4aa9ec57ec47448d164b33887a31e4"
+                    }
+                }
+            }
+            
+#### Update a Ministry Involvement [PUT /people/{person_id}/ministries/{id}]
+
++ Parameters
+
+    + id:`8c4aa9ec57ec47448d164b33887a31e4` (String, required)
+      Ministry involvement system ID.
+
++ Request (application/json)
+
+        {
+            "until": "2017-09-24"
+        }
+
++ Response 200 (application/json)
+
+        {
+            "id": "8c4aa9ec57ec47448d164b33887a31e4",
+            "category": "SUNDAY_SERVICE_MUSIC",
+            "role": "SINGER",
+            "specializations": [ ],
+            "site": "PURI",
+            "since": "2017-03-12",
+            "until": "2017-09-24",
+            "links": {
+                "self": {
+                    "href": "/api/v1/people/674b03/ministries/8c4aa9ec57ec47448d164b33887a31e4"
+                }
+            }
+        }
+        
+#### Remove a Ministry Involvement [DELETE /people/{person_id}/ministries/{id}]
+
++ Parameters
+
+    + id:`8c4aa9ec57ec47448d164b33887a31e4` (String, required)
+      Ministry involvement system ID.
+
++ Response 204
+
+### Person Check-ins [/people/{person_id}/checkins{?limit,offset,sort,type,site,from_date,to_date}]
+
+This resource represents a person's attendance in Church and group activities.
+
++ Parameters
+    + person_id:`674b03` (required, string)
+      Person system ID.
+
+#### Search a Person's Check-Ins [GET]
+
+List the activities that a person has attended during a period of time.
+
++ Parameters
+    + limit:`10` (optional, number)
+      Maximum number of attendance records to retrieve.
+      
+    + offset:`50` (optional, number)
+      Number of records to skip.
+      
+    + sort:`+time,-type` (optional, string)
+      Ascending and descending sorting over multiple fields.
+      
+    + type:`PRAYER_MEETING` (optional, string)
+      Filter for activity type attribute.
+      
+    + site:`SETRASARI` (optional, string)
+      Filter for church site that organizes the activity.
+      
+    + from_date:`2017-02-12` (optional, string)
+      Only include activities that occur on and after this date.
+      
+    + to_date:`2017-02-26` (optional, string)
+      Only include activities that occur on and before this date.
+      
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "b34b0ec2a6a54477b96641c8b6f5a161",
+                "type": "PRAYER_MEETING",
+                "site": "SETRASARI",
+                "location": "Jalan Setraria No. 20 Bandung",
+                "time": "2017-02-15T12:30:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/checkins/b34b0ec2a6a54477b96641c8b6f5a161"
+                    },
+                    "activity": {
+                        "href": "/api/v1/activities/8b3fcfcee8e94cff94f4639b73aa22f1"
+                    }
+                }
+            },
+            {
+                "id": "5e51d90a95fc4a8c9901eb3aa10b74e1",
+                "type": "PRAYER_MEETING",
+                "site": "SETRASARI",
+                "location": "Jalan Setraria No. 20 Bandung",
+                "time": "2017-02-22T12:30:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/checkins/5e51d90a95fc4a8c9901eb3aa10b74e1"
+                    },
+                    "activity": {
+                        "href": "/api/v1/activities/c0b4b61731624ba8a0865da50c2af059"
+                    }
+                }
+            }
+        ]
+
+#### Get a Person's Attendance Summary [GET /people/{person_id}/checkins/summary{?site,from_date,to_date}]
+
+Returns the summary of activities that a person has attended during a given period.
+
+Note the example below on how multi-site attendance of Sunday Services is represented.
+To review a person's weekly attendance chronologically, use `GET /people/:id/activities`
+instead.
+
++ Parameters
+    + site:`SETRASARI` (optional, string)
+      Filter for Church site attribute, if not specified, will include activities from all sites.
+      
+    + from_date:`2017-02-01` (optional, string)
+      Only include activities that occur on and after this date.
+      
+    + to_date:`2017-02-28` (optional, string)
+      Only include activities that occur on and before this date.
+
++ Response 200 (application/json)
+
+        [
+            {
+                "type": "SUNDAY_SERVICE",
+                "site": "SETRASARI",
+                "activity_count": 4,
+                "attendance_count": 2,
+                "links": {
+                    "last_activity": {
+                        "href": "/api/v1/activities/e818cef7f65e408ebf181d772101390f",
+                        "time": "2017-02-19T00:30:00Z",
+                        "name": "SETRASARI-1"
+                    }
+                }
+            },
+            {
+                "type": "SUNDAY_SERVICE",
+                "site": "PURI",
+                "activity_count": 4,
+                "attendance_count": 1,
+                "links": {
+                    "last_activity": {
+                        "href": "/api/v1/activities/d98e19dc60d2487ca873c3f41b0ef55e",
+                        "time": "2017-02-12T03:00:00Z",
+                        "name": "PURI-1"
+                    }
+                }
+            },
+            {
+                "type": "PRAYER_MEETING",
+                "site": "SETRASARI",
+                "activity_count": 4,
+                "attendance_count": 2,
+                "links": {
+                    "last_activity": {
+                        "href": "/api/v1/activities/c0b4b61731624ba8a0865da50c2af059",
+                        "time": "2017-02-22T12:30:00Z"
+                    }
+                }
+            }
+        ]
+
+#### Record an Attendance [POST]
+
+Records a person's check-in at an activity. This record may be created by the person himself
+(e.g. at the attendance gate or using mobile app) or by another person (e.g. manual check-in
+at the Church office), so the source and check-in creator need to be tracked.
+
++ Request (application/json)
+
+        {
+            "links": {
+                "activity": {
+                    "href": "/api/v1/activities/c0b4b61731624ba8a0865da50c2af059"
+                },
+                "created_by": {
+                    "href": "/api/v1/people/674b03"
+                }
+            },
+            "checkin_time": "2017-02-22T12:23:09Z",
+            "source": "HITS_IOS"
+        }
+        
++ Response 201
+
+    + Headers
+    
+            Location: /api/v1/people/674b03/checkins/af56cc21a6654072a1ecf80f2c8a044e
+            
+    + Body
+    
+            {
+                "id": "af56cc21a6654072a1ecf80f2c8a044e",
+                "type": "PRAYER_MEETING",
+                "site": "SETRASARI",
+                "location": "Jalan Setraria No. 20 Bandung",
+                "time": "2017-02-22T12:30:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/checkins/af56cc21a6654072a1ecf80f2c8a044e"
+                    },
+                    "activity": {
+                        "href": "/api/v1/activities/c0b4b61731624ba8a0865da50c2af059"
+                    },
+                    "created_by": {
+                        "href": "/api/v1/people/674b03"
+                    }
+                },
+                "checkin_time": "2017-02-22T12:23:09Z",
+                "source": "HITS_IOS"
+            }
+
+#### Remove an Check-In [DELETE /people/{person_id}/checkins/{id}]
+
+Removes a person's check-in, generally to fix incorrect data input.
+
++ Parameters
+
+    + id:`af56cc21a6654072a1ecf80f2c8a044e` (required, string)
+      Checkin system ID (*not* activity ID)
+
++ Response 204
+
+## Group Activities
+
+Activities API provides access to manage Church and group activities, such as Sunday Service,
+prayer meetings, Care Group meetings, ad-hoc outings, and concerts.
+
+### Activities Collection [/activities{?limit,offset,sort,site,type,from_date,to_date}]
+
+#### Search for Activities [GET]
+
++ Parameters
+
+    + limit:`10` (optional, number)
+      Maximum number of activity records to retrieve.
+      
+    + offset:`50` (optional, number)
+      Number of records to skip.
+      
+    + sort:`+time,-type` (optional, string)
+      Ascending and descending sorting over multiple fields.
+      
+    + site:`SETRASARI` (optional, string)
+      Filter for church site that organizes the activity.
+      
+    + type:`PRAYER_MEETING` (optional, string)
+      Filter for activity type attribute.
+      
+    + from_date:`2017-02-12` (optional, string)
+      Only include activities that occur on and after this date.
+      
+    + to_date:`2017-02-13` (optional, string)
+      Only include activities that occur on and before this date.
+      
+      
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "e2bc339943134b64ad39ada75daa920f",
+                "type": "SUNDAY_SERVICE",
+                "name": "SETRASARI-1",
+                "site": "SETRASARI",
+                "location": "Jalan Setrasari Plaza C-4 Bandung",
+                "time": "2017-02-12T00:30:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/activities/e2bc339943134b64ad39ada75daa920f"
+                    }
+                }
+            },
+            {
+                "id": "e47131a35b3141c5bcf5905362d74bb4",
+                "type": "SUNDAY_SERVICE",
+                "name": "SETRASARI-2",
+                "site": "SETRASARI",
+                "location": "Jalan Setrasari Plaza C-4 Bandung",
+                "time": "2017-02-12T02:00:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/activities/e47131a35b3141c5bcf5905362d74bb4"
+                    }
+                }
+            },
+            {
+                "id": "390fefa3c6514046a3b263e071756d7d",
+                "type": "WEEKDAY_SERVICE",
+                "name": "DIVERGENT",
+                "site": "SETRASARI",
+                "location": "Ballroom Hotel Aston, Jl. Dr. Djunjunan No. 162 Bandung",
+                "time": "2017-02-13T12:30:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/activities/390fefa3c6514046a3b263e071756d7d"
+                    }
+                }
+            }
+        ]
+        
+#### Create an Activity [POST]
+
++ Request (application/json)
+
+        {
+            "type": "CARE_GROUP_MEETING",
+            "name": "Grace CG",
+            "site": "SETRASARI",
+            "location": "Jalan Setra Indah No. 23 Bandung",
+            "time": "2017-03-09T12:30:00Z"
+        }
+        
++ Response 201 (application/json)
+
+    + Headers
+    
+            Location: /api/v1/activities/327d6a63e3b04a5584f8fedcd5b4ad47
+        
+    + Body
+    
+            {
+                "id": "327d6a63e3b04a5584f8fedcd5b4ad47",
+                "type": "CARE_GROUP_MEETING",
+                "name": "Grace CG",
+                "site": "SETRASARI",
+                "location": "Jalan Setra Indah No. 23 Bandung",
+                "time": "2017-03-09T12:30:00Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/activities/327d6a63e3b04a5584f8fedcd5b4ad47"
+                    }
+                }
+            }
+        
+#### Change an Activity [PUT /activities/{id}]
+
++ Parameters
+
+    + id:`e47131a35b3141c5bcf5905362d74bb4` (required, string)
+      Activity system ID
+
++ Request (application/json)
+
+        {
+            "attendance": {
+                "adult_male": 250,
+                "adult_female": 275,
+                "children": 20
+            }
+        }
+
++ Response 200 (application/json)
+
+        {
+            "id": "e47131a35b3141c5bcf5905362d74bb4",
+            "type": "SUNDAY_SERVICE",
+            "name": "SETRASARI-2",
+            "site": "SETRASARI",
+            "location": "Jalan Setrasari Plaza C-4 Bandung",
+            "time": "2017-02-12T02:00:00Z",
+            "attendance": {
+                "adult_male": 250,
+                "adult_female": 275,
+                "children": 20
+            },
+            "links": {
+                "self": {
+                    "href": "/api/v1/activities/e47131a35b3141c5bcf5905362d74bb4"
+                }
+            }
+        }
+
+#### Remove an Activity [DELETE /activities/{id}]
+
++ Parameters
+
+    + id:`327d6a63e3b04a5584f8fedcd5b4ad47` (required, string)
+      Activity system ID
+      
++ Response 204
+
+### Activity Check-ins [/activities/{id}/checkins{?offset,limit,sort}]
+
+This endpoint is used to list the check-ins that have been recorded for an activity.
+
++ Parameters
+
+    + id:`8b3fcfcee8e94cff94f4639b73aa22f1` (required, string)
+      Activity system ID
+      
+    + limit:`10` (optional, number)
+      Maximum number of check-in records to retrieve.
+      
+    + offset:`50` (optional, number)
+      Number of check-in records to skip.
+      
+    + sort:`+checkin_time` (optional, string)
+      Ascending and descending sorting over multiple fields.
+      
+#### List Check-ins for an Activity [GET]
+
+The list of check-ins provide a limited view of attendance at an activity. It is meant to
+retrieve the list of participants in an activity.
+
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "b34b0ec2a6a54477b96641c8b6f5a161",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/people/674b03/checkins/b34b0ec2a6a54477b96641c8b6f5a161"
+                    },
+                    "person": {
+                        "href": "/api/v1/people/674b03",
+                        "full_name": "Jonathan Sutadi"
+                    }
+                },
+                "checkin_time": "2017-02-22T12:23:09Z",
+                "source": "HITS_IOS"
+            }
+        ]
+        
+## Group Requests
+
+This API is used to check the status of requests that go through some workflow. For example, person creation
+and update need to be validated by an administrator by default.
+
+### Requests [/requests{?limit,offset,sort,submitted_by,status}]
+
++ Parameters
+
+    + limit:`10` (optional, number)
+      Maximum number of requests to retrieve.
+      
+    + offset:`50` (optional, number)
+      Number of request records to skip.
+      
+    + sort:`+created_at` (optional, string)
+      Ascending and descending sorting over multiple fields.
+      
+#### Search for Requests [GET]
+
++ Response 200 (application/json)
+
+        [
+            {
+                "id": "32b3d10bd4b945c89a72f9a4858f24f1",
+                "type": "CREATE_PERSON",
+                "status": "PENDING",
+                "created_at": "2017-03-01T01:40:51Z",
+                "modified_at": "2017-03-01T01:40:51Z",
+                "links": {
+                    "self": {
+                        "href": "/api/v1/requests/32b3d10bd4b945c89a72f9a4858f24f1"
+                    },
+                    "submitted_by": {
+                        "href": "/api/v1/people/f36034",
+                        "full_name": "Patrick Sugiarto"
+                    }
+                }
+            }
+        ]
+
+#### Retrieve a Request Info [GET /requests/{id}]
+
++ Parameters
+
+    + id:`5c337a59b2d64b18b55b214b3bdc925a` (required, string)
+      Request system ID
+
++ Response 200 (application/json)
+
+        {
+            "id": "32b3d10bd4b945c89a72f9a4858f24f1",
+            "type": "CREATE_PERSON",
+            "status": "PENDING",
+            "created_at": "2017-03-01T01:40:51Z",
+            "modified_at": "2017-03-01T01:40:51Z",
+            "links": {
+                "self": {
+                    "href": "/api/v1/requests/32b3d10bd4b945c89a72f9a4858f24f1"
+                },
+                "submitted_by": {
+                    "href": "/api/v1/people/f36034",
+                    "full_name": "Patrick Sugiarto"
+                }
+            }
+        }
+
+#### Cancel a Request [DELETE /requests/{id}]
+
+If the request has entered a state where cancellation is not possible, the response will be
+`400 Bad Request`.
+
++ Response 204
